@@ -1,59 +1,57 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import PersonTask from './PersonTask'
-
-
-const defaultPersonList = [
-    {
-        name:'Mike',
-        tasks:['apple', 'banana', 'orange']
-    },
-    {
-        name:'Craig',
-        tasks:['celery', 'carrot', 'bike']
-    },
-    {
-        name:'Steve',
-        tasks:['puck', 'stick', 'skates']
-    }
-]
-
+import { fetchTasks, patchTasks, addTasks  } from '../api/serverAPI'
 
 const PersonList = () => {
 
-    const [personState, setPersonState] = useState(defaultPersonList)
-    const handleMoveTask = (task:string, taskIndex:number, direction:number, personIndex:number) => {
-        const donatingPersonTask = personState[personIndex]
+    const [personState, setPersonState] = useState<PersonTaskType[] | []>([])
+
+    const callfetchTasks = async () => {
+        const tasks = await fetchTasks()
+        setPersonState(tasks)
+    }
+
+    useEffect(() => {
+        callfetchTasks()
+    },[])
+
+    const handleMoveTask = async (taskIndex:number, direction:number, personIndex:number) => {
+        const donatingPersonTask = personState[personIndex] as PersonTaskType
         let receivingPersonIndex = personIndex + direction
         if (receivingPersonIndex > personState.length -1) {
-            console.log("wrap right")
             receivingPersonIndex = 0
         }
         else if (receivingPersonIndex < 0) {
-            console.log("wrap left")
             receivingPersonIndex = personState.length - 1
         }
         
-        const receivingPersonTask = personState[receivingPersonIndex]
+        const receivingPersonTask = personState[receivingPersonIndex] as PersonTaskType
+        const { updatedDonorTasks, updatedReceiverTasks } =  await patchTasks(donatingPersonTask, receivingPersonTask, taskIndex )
 
-        donatingPersonTask.tasks.splice(taskIndex, 1)
-        receivingPersonTask.tasks.splice(taskIndex, 0, task)
+        donatingPersonTask!.tasks = updatedDonorTasks
+        receivingPersonTask!.tasks = updatedReceiverTasks
 
         let updatedPersonState = personState
         updatedPersonState.splice(personIndex, 1, donatingPersonTask)
         updatedPersonState.splice(receivingPersonIndex, 1, receivingPersonTask)
+        setPersonState([...updatedPersonState])
+    }
+
+    const handleAddNewTask = async(personIndex:number) => {
+        let updatedPersonState = personState
+
+        const newTask = prompt("Please enter a new Task") as string
+        const updatePerson = personState[personIndex]
+        
+        updatePerson.tasks.push(newTask)
+        const updated = await addTasks(updatePerson)
+        updatedPersonState.splice(personIndex, 1, { ...updatePerson, tasks:updated.tasks})
 
         setPersonState([...updatedPersonState])
     }
 
-    const handleAddNewTask = (personIndex:number) => {
-        let updatedPersonState = personState
-        const newTask = prompt("Please enter a new Task") as string
-        console.log(newTask)
-        const updatePerson = personState[personIndex]
-        updatePerson.tasks.push(newTask)
-        updatedPersonState.splice(personIndex, 1, updatePerson)
-        setPersonState([...updatedPersonState])
-
+    if(personState.length === 0) {
+        return <h5>Loading...</h5>
     }
 
   return (
@@ -64,7 +62,7 @@ const PersonList = () => {
                     <PersonTask
                         name={person.name} 
                         tasks={person.tasks} 
-                        onMoveTask={(task, taskIndex, direction) => handleMoveTask(task, taskIndex, direction, i)}
+                        onMoveTask={(taskIndex, direction) => handleMoveTask(taskIndex, direction, i)}
                         />
                     <button className='border' onClick={() => handleAddNewTask(i)}>Add New Task</button> 
                 </div>
